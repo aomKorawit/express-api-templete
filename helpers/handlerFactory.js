@@ -63,19 +63,13 @@ exports.getAll = (Model) =>
     });
   });
 
-exports.deleteOne = (Model) =>
+exports.createOne = (Model) =>
   catchAsync(async (req, res, next) => {
-    const doc = await Model.findByIdAndDelete(req.params.id);
+    const doc = await Model.create(req.body);
 
-    if (!doc) {
-      return next(
-        new AppError('No document found with that ID', 404)
-      );
-    }
-
-    res.status(200).json({
-      status: 'delete request successfully',
-      data: doc.name ,
+    res.status(201).json({
+      status: 'create request successfully',
+      data: doc,
     });
   });
 
@@ -99,5 +93,71 @@ exports.updateOne = (Model) =>
     res.status(200).json({
       status: 'update request successfully',
       data: doc,
+    });
+  });
+
+exports.deleteOne = (Model) =>
+  catchAsync(async (req, res, next) => {
+    const doc = await Model.findByIdAndDelete(req.params.id);
+
+    if (!doc) {
+      return next(
+        new AppError('No document found with that ID', 404)
+      );
+    }
+
+    res.status(200).json({
+      status: 'delete request successfully',
+      data: doc.name ,
+    });
+  });
+
+exports.getAllAdmins = (Model) =>
+  catchAsync(async (req, res, next) => {
+    const filter = {role:'admin'};
+
+    const features = new APIFeatures(Model.find(filter), req.query)
+      .filter()
+      .limitFields()
+      .paginate()
+      .sort();
+
+    // const doc = await features.query.explain();
+    const doc = await features.query;
+
+    const page = +req.query.page || 1;
+    const limit = +req.query.limit || +config.pageLimit;
+
+    const total = await Model.countDocuments(filter);
+
+    res.status(200).json({
+      status: 'success',
+      total,
+      totalPages: Math.ceil(total / +limit),
+      currentPage: page,
+      perPage: limit,
+      data: doc,
+    });
+  });
+
+exports.deleteAdminOne = (Model) =>
+  catchAsync(async (req, res, next) => {
+    const doc = await Model.findByIdAndDelete(req.params.id);
+    await Cart.findOneAndDelete({userId:req.params.id});
+    await Wishlist.findOneAndDelete({userId:req.params.id});
+    await Chat.findOneAndDelete({userId:req.params.id});
+
+    if (!doc) {
+      return next(
+        new AppError('No document found with that ID', 404)
+      );
+    }
+
+    res.status(200).json({
+      status: 'delete request successfully',
+      data: {
+        firstName: doc.firstName ,
+        email: doc.email
+      }
     });
   });
