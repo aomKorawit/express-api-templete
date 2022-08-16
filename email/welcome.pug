@@ -1,0 +1,27 @@
+html
+    head
+        style.
+            @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300&display=swap');
+    body(style="font-family: 'Kanit', sans-serif;")
+        div(style="padding: 3% 10%;border: 3px solid #7EC144;border-bottom:unset")
+            div(style="margin: 20px auto")
+                img(src= "https://api.nomaroi.com/img/LogoFNNomaroi.png" width="150px" style="display:block;margin:auto")
+            h2(style="color:#7EC144;margin:unset;margin-top:30px") การสมัครสมาชิกของคุณเสร็จสิ้น
+            h3(style="color:#7EC144;margin:unset") ยินดีต้อนรับคุณ #{firstName} เข้าสู่ F&N Nomaroi
+            p ขอขอบคุณสำหรับการสมัครสมาชิกกับ F&N Nomaroi  ขอให้คุณมีความสุขกับการสั่งซื้อสินค้าแสนอร่อยของเรา
+            h4(style="text-align:center;margin-top:25px") ข้อมูลบัญชีของคุณ
+            table(style="width:auto;color:#464646;margin:auto;border-collapse: collapse")
+                tr(style="line-height:35px")
+                    td(style="border-bottom:1px solid #dddddd") ชื่อจริง
+                    td(style="border-bottom:1px solid #dddddd;width:50%") #{firstName}
+                tr(style="line-height:35px")
+                    td(style="border-bottom:1px solid #dddddd") นามสกุล
+                    td(style="border-bottom:1px solid #dddddd;width:50%") #{lastName}
+                tr(style="line-height:35px")
+                    td(style="border-bottom:1px solid #dddddd") บัญชี
+                    td(style="border-bottom:1px solid #dddddd;width:50%") #{email}                    
+                tr(style="line-height:35px")
+                    td(style="border-bottom:1px solid #dddddd") เบอร์โทรศัพท์
+                    td(style="border-bottom:1px solid #dddddd;width:50%") #{phone}                                        
+
+        div(style="color:white;background: #7EC144;padding:10px;padding-top:7px;text-align:center") F&N Dairies (Thailand) Limited. All rights reserved.

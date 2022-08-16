@@ -5,8 +5,6 @@ const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema(
   {
-    point: { type: String },
-    spending: { type: Number },
     provider : {
       type: String,
       enum: ['none', 'facebook', 'google', 'line'],

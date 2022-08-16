@@ -16,6 +16,13 @@
 
 - สั่ง `npm run dev` ให้ Service ทำงานใน Development Mode
 
+- การเรียกใช้ระบบส่งอีเมล์ ยกตัวอย่างส่งอีเมล์สมัครสมาชิกสำเร็จ
+    const Email = require('../utils/email');
+    await new Email(newUser, url).sendWelcome();
+
+    หรือดูตัวอย่างได้จากไฟล์ authController
+
+
 # Services
 
 - API จะเข้าผ่าน `http://localhost:3000/api`
