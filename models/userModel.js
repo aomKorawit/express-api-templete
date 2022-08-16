@@ -73,6 +73,8 @@ const userSchema = new mongoose.Schema(
       default: true,
       select: false,
     },
+    wrongPassword: { type: Number },
+    lockExpried: { type: Date },
   },
   { timestamps: true }
 );

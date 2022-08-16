@@ -4,7 +4,10 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/userModel');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
-// const Email = require('../utils/email');
+const Email = require('../utils/email');
+
+const Cart = require('../models/cartModel');
+const Wishlist = require('../models/wishlistModel');
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -15,15 +18,15 @@ const signToken = (id) => {
 const createSendToken = (user, statusCode, req, res) => {
   const token = signToken(user._id);
 
-  res.cookie('jwt', token, {
+  res.cookie('aomKorawit_Login', token, {
     expires: new Date(
-      // Expires in one day!!
+      // Expires in 20 miniute!!
       Date.now() +
-        process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
+        // process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
+        20 * 60 * 1000
     ),
     httpOnly: true,
-    secure:
-      req.secure || req.headers['x-forwarded-proto'] === 'https',
+    secure: true,
   });
 
   // Remove password from output
@@ -39,20 +42,42 @@ const createSendToken = (user, statusCode, req, res) => {
 };
 
 exports.signUp = catchAsync(async (req, res, next) => {
-  const newUser = await User.create({
-    firstName: req.body.firstName,
-    lastName: req.body.lastName,
-    email: req.body.email,
-    phone: req.body.phone,
-    role: 'user',
-    password: req.body.password,
-    passwordConfirm: req.body.passwordConfirm,
-  });
+  let newUser = {}
+
+  if (req.body.type === "sso") {
+    console.log("sso");
+    newUser = await User.create({
+      firstName: req.body.displayName,
+      lastName: req.body.lastName ? req.body.lastName : "",
+      email: req.body.email,
+      role: "user",
+    });
+  } else {
+    console.log("!sso");
+    newUser = await User.create({
+      firstName: req.body.firstName,
+      lastName: req.body.lastName,
+      email: req.body.email,
+      phone: req.body.phone,
+      role: "user",
+      password: req.body.password,
+      passwordConfirm: req.body.passwordConfirm,
+    })
+  }
 
   // req.protocol = http or https
-  // const url = `${req.protocol}://${req.get('host')}/me`;
+  const url = `${req.protocol}://${req.get('host')}/me`;
   //   console.log(url);
-  // await new Email(newUser, url).sendWelcome();
+  await new Email(newUser, url).sendWelcome();
+
+  await Cart.create({
+    userId: newUser.id,
+    productCartList: []
+  });
+  await Wishlist.create({
+    userId: newUser.id,
+    productWishlistList: []
+  });
 
   createSendToken(newUser, 201, req, res);
 });
@@ -68,6 +93,15 @@ exports.signUpAdmin = catchAsync(async (req, res, next) => {
     passwordConfirm: req.body.passwordConfirm,
   });
 
+  await Cart.create({
+    userId: newUser.id,
+    productCartList: []
+  });
+  await Wishlist.create({
+    userId: newUser.id,
+    productWishlistList: []
+  });
+
   newUser.password = undefined;
 
   res.status(201).json({
@@ -79,34 +113,163 @@ exports.signUpAdmin = catchAsync(async (req, res, next) => {
 });
 
 exports.login = catchAsync(async (req, res, next) => {
-  const { email, password } = req.body;
+  const { email, password, type, accessToken } = req.body;
+
+  let user = null;
 
   // 1) Check if email and password exist
-  if (!email || !password) {
-    return next(
-      new AppError('Please provide email and password!', 400)
-    );
+
+  if ((!email || !password) && type !== "sso") {
+    return next(new AppError("Please provide email and password!", 400));
   }
 
-  // 2) Check if user exists && password is correct
-  const user = await User.findOne({ email }).select('+password');
+  if (type === "sso") {
+    // decode token
 
-  //   console.log(user);
+    user = await User.findOne({ email }).select("-password");
+    if (!user) {
+      return next(
+        new AppError(
+          "The user belonging to this token does no longer exist.",
+          401
+        )
+      );
+    }
 
-  if (
-    !user ||
-    !(await user.correctPassword(password, user.password))
-  ) {
-    return next(new AppError('Incorrect email or password', 401));
+    console.log("current user =>", user);
+    // 3) If everything ok, send token to client
+    createSendToken(user, 200, req, res);     
+  } else {
+    // 2) Check if user exists && password is correct
+    user = await User.findOne({ email }).select("+password");
+
+    //   console.log(user);
+    const nowDate = new Date().getTime()
+    const checkLock = new Date(user.lockExpried).getTime()
+    
+    if(!(user.lockExpried) || (nowDate > checkLock))
+    {
+      if(user.lockExpried)
+      {
+        await User.findOneAndUpdate(
+          { email },
+          {
+            $unset: { 
+              lockExpried: "",
+            },
+          },
+          {
+            new: true,
+          }
+        )    
+      }
+
+      if (
+        !user ||
+        !(await user.correctPassword(password, user.password))
+      ) {
+        const wrongCount = user.wrongPassword
+        if(wrongCount)
+        {
+          if(wrongCount < 2)
+          {
+            await User.findOneAndUpdate(
+              { email },
+              { $inc: { wrongPassword : 1 } },
+              {
+                new: true,
+              }
+            )  
+            res.status(401).json({
+              status: 'fail',
+              message: `Incorrect email or password. Attempts remaining: ${ 2 - wrongCount }`,
+              messageThai: `อีเมล์ หรือ รหัสผ่านไม่ถูกต้อง เหลือโอกาสอีก ${ 2 - wrongCount } ครั้ง`,
+            });          
+          }
+          else
+          {
+            const unlockDate = new Date(Date.now() + 15 * 60 * 1000)      
+            const lockUser = await User.findOneAndUpdate(
+              { email },
+              { 
+                lockExpried : unlockDate,
+                $unset: { wrongPassword: "" },
+              },
+              {
+                new: true,
+              }
+            ) 
+            const end = new Date(lockUser.lockExpried)
+            const now = new Date();
+            const distance = end - now;
+          
+            const remain = Math.floor((distance % (60000 * 60)) / (1000 * 60))
+            const remainSec = Math.floor((distance % (1000 * 60)) / 1000)
+        
+            res.status(401).json({
+              status: 'fail',
+              message: `This user is locked. Please wait another ${ remain !== 0 ? remain + ' minutes.' : remainSec + ' seconds.' }`,
+              messageThai: `บัญชีผู้ใช้งานนี้ถูกจำกัดสิทธิ์การใช้งาน โปรดลองอีกครั้งในอีก ${ remain !== 0 ? remain + ' นาที' : remainSec + ' วินาที' }`,
+            });                 
+          }
+        }
+        else
+        {
+          await User.findOneAndUpdate(
+            { email },
+            { $inc: { wrongPassword : 1 } },
+            {
+              new: true,
+            }
+          )
+          res.status(401).json({
+            status: 'fail',
+            message: `Incorrect email or password. Attempts remaining: 2`,
+            messageThai: `อีเมล์ หรือ รหัสผ่านไม่ถูกต้อง เหลือโอกาสอีก 2 ครั้ง`,
+          });
+        } 
+      }
+      else
+      {
+        if(user.wrongPassword)
+        {
+          await User.findOneAndUpdate(
+            { email },
+            {
+              $unset: { 
+                wrongPassword: "",
+              },
+            },
+            {
+              new: true,
+            }
+          )    
+        } 
+        // 3) If everything ok, send token to client
+        createSendToken(user, 200, req, res);           
+      }
+    }
+    else if(user.lockExpried)
+    {
+      const end = new Date(user.lockExpried)
+      const now = new Date();
+      const distance = end - now;
+    
+      const remain = Math.floor((distance % (60000 * 60)) / (1000 * 60))
+      const remainSec = Math.floor((distance % (1000 * 60)) / 1000)
+
+      res.status(401).json({
+        status: 'fail',
+        message: `This user is locked. Please wait another ${ remain !== 0 ? remain + ' minutes.' : remainSec + ' seconds.' }`,
+        messageThai: `บัญชีผู้ใช้งานนี้ถูกจำกัดสิทธิ์การใช้งาน โปรดลองอีกครั้งในอีก ${ remain !== 0 ? remain + ' นาที' : remainSec + ' วินาที' }`,
+      });     
+    }
   }
-
-  // 3) If everything ok, send token to client
-  createSendToken(user, 200, req, res);
 });
 
 exports.logout = (req, res) => {
-  res.cookie('jwt', 'loggedout', {
-    expires: new Date(Date.now() + 10 * 1000),
+  res.cookie('aomKorawit_Login', 'loggedout', {
+    expires: new Date(Date.now() + 1 * 1000),
     httpOnly: true,
   });
   res.status(200).json({ status: 'success' });
@@ -120,8 +283,8 @@ exports.protect = catchAsync(async (req, res, next) => {
     req.headers.authorization.startsWith('Bearer')
   ) {
     token = req.headers.authorization.split(' ')[1];
-  } else if (req.cookies.jwt) {
-    token = req.cookies.jwt;
+  } else if (req.cookies.aomKorawit_Login) {
+    token = req.cookies.aomKorawit_Login;
   }
 
   if (!token) {
@@ -167,11 +330,11 @@ exports.protect = catchAsync(async (req, res, next) => {
 
 // Only for rendered pages, no errors!
 exports.isLoggedIn = async (req, res, next) => {
-  if (req.cookies.jwt) {
+  if (req.cookies.aomKorawit_Login) {
     try {
       // 1) verify token
       const decoded = await promisify(jwt.verify)(
-        req.cookies.jwt,
+        req.cookies.aomKorawit_Login,
         process.env.JWT_SECRET
       );
 
@@ -217,7 +380,8 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
   const user = await User.findOne({ email: req.body.email });
   if (!user) {
     return next(
-      new AppError('There is no user with email address.', 404)
+      // new AppError('There is no user with email address.', 404)
+      new AppError('We could not find the resource you requested.', 404)
     );
   }
 
@@ -288,14 +452,22 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
     return next(new AppError('Your current password is wrong.', 401));
   }
 
-  // 3) If so, update password
-  user.password = req.body.password;
-  user.passwordConfirm = req.body.passwordConfirm;
-  await user.save();
-  // User.findByIdAndUpdate will NOT work as intended!
+  const pattern = /^(?=.*\d)(?=.*[a-z]).{8,}$/
+  if(pattern.test(req.body.password))
+  {
+    // 3) If so, update password
+    user.password = req.body.password;
+    user.passwordConfirm = req.body.passwordConfirm;
+    await user.save();
+    // User.findByIdAndUpdate will NOT work as intended!
 
-  // 4) Log user in, send JWT
-  createSendToken(user, 200, req, res);
+    // 4) Log user in, send JWT
+    createSendToken(user, 200, req, res);
+  }
+  else
+  {
+    return next(new AppError(`Your new password doesn't follow the required pattern.`, 401));
+  }
 });
 
 exports.updateMe = catchAsync(async (req, res, next) => {
