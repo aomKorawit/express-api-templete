@@ -9,29 +9,29 @@ module.exports = class Email {
     this.lastName = user.lastName;
     this.phone = user.phone;
     this.url = url;
-    this.from = '"F&N Nomaroi" <noreply@nomaroi.com>';
+    this.from = '"TESTMAIL" <noreply@tesmail.com>';
   }
 
   newTransport() {
-    if (process.env.NODE_ENV === 'production') {
-      return nodemailer.createTransport({
-        // service: 'gmail',
-        // auth: {
-        //   user: process.env.GMAIL_USERNAME,
-        //   pass: process.env.GMAIL_PASSWORD,
-        // },
-        host: 'smtp.mailgun.org',
-        port: 587,
-        auth: {
-          user: 'noreply@nomaroi.com',
-          pass: '497583f6c5dde870da594d89f79c3989-0be3b63b-80881f24',
-        },
-        tls: {
-          // do not fail on invalid certs
-          rejectUnauthorized: false,
-        },
-      });
-    }
+    // if (process.env.NODE_ENV === 'production') {
+    //   return nodemailer.createTransport({
+    //     // service: 'gmail',
+    //     // auth: {
+    //     //   user: process.env.GMAIL_USERNAME,
+    //     //   pass: process.env.GMAIL_PASSWORD,
+    //     // },
+    //     host: 'smtp.mailgun.org',
+    //     port: 9999,
+    //     auth: {
+    //       user: 'test@testmail.com',
+    //       pass: pass,
+    //     },
+    //     tls: {
+    //       // do not fail on invalid certs
+    //       rejectUnauthorized: false,
+    //     },
+    //   });
+    // }
 
     return nodemailer.createTransport({
       host: 'mail.fn.digisolution.co.th',

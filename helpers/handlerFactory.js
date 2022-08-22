@@ -5,6 +5,19 @@ const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 const APIFeatures = require('../utils/apiFeatures');
 
+exports.deleteImg = () =>
+  catchAsync(async (req, res, next) => {
+    const getImg = req.body.imgList
+
+    getImg.forEach(item => {
+      fs.unlinkSync(item);
+    })
+
+    res.status(200).json({
+      status: 'deleted image successful',
+    });
+  });
+
 exports.getOne = (Model, popOptions1, popSelect1, popOptions2, popSelect2) =>
   catchAsync(async (req, res, next) => {
     let query = Model.findById(req.params.id);
